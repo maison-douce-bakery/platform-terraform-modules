@@ -69,6 +69,10 @@ resource "aws_autoscaling_group" "this" {
   vpc_zone_identifier = var.subnet_ids
   health_check_type   = "EC2"
 
+  # A new instance profile can be rejected for a few seconds after creation. Keep waiting while the
+  # ASG retries instead of failing the apply and leaving the ASG tainted.
+  ignore_failed_scaling_activities = true
+
   launch_template {
     id      = aws_launch_template.this.id
     version = aws_launch_template.this.latest_version
