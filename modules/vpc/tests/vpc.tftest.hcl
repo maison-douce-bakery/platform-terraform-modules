@@ -6,6 +6,13 @@ mock_provider "aws" {
       names = ["ap-southeast-2a", "ap-southeast-2b", "ap-southeast-2c"]
     }
   }
+
+  override_data {
+    target = data.aws_region.current
+    values = {
+      region = "ap-southeast-2"
+    }
+  }
 }
 
 variables {
@@ -66,6 +73,84 @@ run "third_az_keeps_existing_subnets" {
     }
     error_message = "Adding an AZ must not move existing subnets."
   }
+
+  assert {
+    condition = local.private_subnets == {
+      "ap-southeast-2a" = "10.10.64.0/20"
+      "ap-southeast-2b" = "10.10.80.0/20"
+      "ap-southeast-2c" = "10.10.96.0/20"
+    }
+    error_message = "Adding an AZ must not move existing private subnets."
+  }
+}
+
+run "private_tier_without_nat" {
+  assert {
+    condition = local.private_subnets == {
+      "ap-southeast-2a" = "10.10.64.0/20"
+      "ap-southeast-2b" = "10.10.80.0/20"
+    }
+    error_message = "Private subnets must be the first two /20s of the private /18."
+  }
+
+  assert {
+    condition     = alltrue([for s in aws_subnet.private : !s.map_public_ip_on_launch])
+    error_message = "Private subnets must not assign public IPs."
+  }
+
+  assert {
+    condition     = length(aws_route_table.private) == 2 && length(aws_route_table_association.private) == 2
+    error_message = "Each private subnet must have its own route table."
+  }
+
+  assert {
+    condition     = length(aws_nat_gateway.this) == 0 && length(aws_eip.nat) == 0 && length(aws_route.private_nat) == 0
+    error_message = "nat_mode none must create no NAT, EIP or default route."
+  }
+
+  assert {
+    condition     = aws_vpc_endpoint.s3.service_name == "com.amazonaws.ap-southeast-2.s3" && aws_vpc_endpoint.s3.vpc_endpoint_type == "Gateway"
+    error_message = "The S3 endpoint must be a gateway endpoint in the VPC's region."
+  }
+
+  assert {
+    condition     = toset(aws_vpc_endpoint.s3.route_table_ids) == toset(values(aws_route_table.private)[*].id)
+    error_message = "The S3 endpoint must be attached to every private route table."
+  }
+
+  assert {
+    condition     = length(output.private_subnet_ids) == 2
+    error_message = "private_subnet_ids must list both subnets."
+  }
+}
+
+run "single_nat" {
+  variables {
+    nat_mode = "single"
+  }
+
+  assert {
+    condition     = length(aws_nat_gateway.this) == 1 && aws_nat_gateway.this[0].subnet_id == aws_subnet.public["ap-southeast-2a"].id
+    error_message = "nat_mode single must create one NAT in the first public subnet."
+  }
+
+  assert {
+    condition = alltrue([
+      for k, rt in aws_route_table.private :
+      aws_route.private_nat[k].route_table_id == rt.id && aws_route.private_nat[k].nat_gateway_id == aws_nat_gateway.this[0].id && aws_route.private_nat[k].destination_cidr_block == "0.0.0.0/0"
+    ])
+    error_message = "Every private route table must send 0.0.0.0/0 to the NAT."
+  }
+}
+
+run "rejects_unknown_nat_mode" {
+  command = plan
+
+  variables {
+    nat_mode = "per_az"
+  }
+
+  expect_failures = [var.nat_mode]
 }
 
 run "rejects_non_16_cidr" {
