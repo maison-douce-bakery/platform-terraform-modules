@@ -68,6 +68,11 @@ run "defaults" {
   }
 
   assert {
+    condition     = aws_autoscaling_group.this.ignore_failed_scaling_activities
+    error_message = "The ASG must keep waiting through failed launches (IAM propagation)."
+  }
+
+  assert {
     condition     = aws_iam_role.instance.permissions_boundary == var.permissions_boundary_arn && aws_iam_role.instance.path == "/workload/"
     error_message = "The instance role must carry the boundary and live under /workload/."
   }
