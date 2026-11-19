@@ -7,3 +7,8 @@ output "public_subnet_ids" {
   description = "IDs of the public subnets, in AZ order."
   value       = values(aws_subnet.public)[*].id
 }
+
+output "private_subnet_ids" {
+  description = "IDs of the private subnets, in AZ order."
+  value       = values(aws_subnet.private)[*].id
+}

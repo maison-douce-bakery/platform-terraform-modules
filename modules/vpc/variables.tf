@@ -30,6 +30,18 @@ variable "az_count" {
   }
 }
 
+# No default NAT: it costs money per hour, so callers opt in explicitly.
+variable "nat_mode" {
+  description = "Internet egress for private subnets: `none`, or `single` (one NAT gateway in the first AZ)."
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "single"], var.nat_mode)
+    error_message = "nat_mode must be none or single."
+  }
+}
+
 variable "tags" {
   description = "Extra tags for every resource, merged on top of the provider's default_tags."
   type        = map(string)
