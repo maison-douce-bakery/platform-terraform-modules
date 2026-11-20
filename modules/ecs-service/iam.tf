@@ -37,6 +37,29 @@ resource "aws_iam_role" "task" {
   tags = var.tags
 }
 
+# Each volume may be mounted only through its access point; writes only when it isn't read-only.
+resource "aws_iam_role_policy" "task_efs" {
+  count = length(var.efs_volumes) > 0 ? 1 : 0
+
+  name = "mount-efs"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      for k in sort(keys(var.efs_volumes)) : {
+        Effect   = "Allow"
+        Action   = var.efs_volumes[k].read_only ? ["elasticfilesystem:ClientMount"] : ["elasticfilesystem:ClientMount", "elasticfilesystem:ClientWrite"]
+        Resource = "arn:aws:elasticfilesystem:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:file-system/${var.efs_volumes[k].file_system_id}"
+        Condition = {
+          StringEquals = {
+            "elasticfilesystem:AccessPointArn" = "arn:aws:elasticfilesystem:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:access-point/${var.efs_volumes[k].access_point_id}"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "task" {
   count = var.task_role_policy_json == null ? 0 : 1
 

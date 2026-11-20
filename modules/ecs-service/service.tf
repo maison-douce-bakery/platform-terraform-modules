@@ -13,6 +13,24 @@ resource "aws_ecs_task_definition" "this" {
     cpu_architecture        = "ARM64"
   }
 
+  dynamic "volume" {
+    for_each = var.efs_volumes
+
+    content {
+      name = volume.key
+
+      efs_volume_configuration {
+        file_system_id     = volume.value.file_system_id
+        transit_encryption = "ENABLED"
+
+        authorization_config {
+          access_point_id = volume.value.access_point_id
+          iam             = "ENABLED"
+        }
+      }
+    }
+  }
+
   tags = var.tags
 }
 
@@ -38,8 +56,8 @@ resource "aws_ecs_service" "this" {
     enable   = true
     rollback = true
   }
-  deployment_minimum_healthy_percent = 100
-  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = var.deployment_minimum_healthy_percent
+  deployment_maximum_percent         = var.deployment_maximum_percent
 
   # The apply fails if the service doesn't reach a steady state, instead of reporting success early.
   wait_for_steady_state = true
