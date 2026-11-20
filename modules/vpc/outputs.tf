@@ -12,3 +12,8 @@ output "private_subnet_ids" {
   description = "IDs of the private subnets, in AZ order."
   value       = values(aws_subnet.private)[*].id
 }
+
+output "database_subnet_ids" {
+  description = "IDs of the database subnets, in AZ order. They have no route to the internet."
+  value       = values(aws_subnet.database)[*].id
+}

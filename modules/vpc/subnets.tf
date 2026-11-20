@@ -69,3 +69,34 @@ resource "aws_route_table_association" "private" {
   subnet_id      = each.value.id
   route_table_id = aws_route_table.private[each.key].id
 }
+
+resource "aws_subnet" "database" {
+  for_each = local.database_subnets
+
+  vpc_id                  = aws_vpc.this.id
+  availability_zone       = each.key
+  cidr_block              = each.value
+  map_public_ip_on_launch = false
+
+  tags = merge(var.tags, {
+    Name = "${var.name}-database-${each.key}"
+    Tier = "database"
+  })
+}
+
+# Local route only: databases never reach the internet, in any AZ, so one table is enough.
+resource "aws_route_table" "database" {
+  vpc_id = aws_vpc.this.id
+
+  tags = merge(var.tags, {
+    Name = "${var.name}-database"
+    Tier = "database"
+  })
+}
+
+resource "aws_route_table_association" "database" {
+  for_each = aws_subnet.database
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.database.id
+}

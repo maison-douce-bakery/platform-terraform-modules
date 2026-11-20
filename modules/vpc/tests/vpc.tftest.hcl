@@ -82,6 +82,54 @@ run "third_az_keeps_existing_subnets" {
     }
     error_message = "Adding an AZ must not move existing private subnets."
   }
+
+  assert {
+    condition = local.database_subnets == {
+      "ap-southeast-2a" = "10.10.128.0/20"
+      "ap-southeast-2b" = "10.10.144.0/20"
+      "ap-southeast-2c" = "10.10.160.0/20"
+    }
+    error_message = "Adding an AZ must not move existing database subnets."
+  }
+}
+
+run "database_tier_is_isolated" {
+  variables {
+    nat_mode = "single"
+  }
+
+  assert {
+    condition = local.database_subnets == {
+      "ap-southeast-2a" = "10.10.128.0/20"
+      "ap-southeast-2b" = "10.10.144.0/20"
+    }
+    error_message = "Database subnets must be the first two /20s of the database /18."
+  }
+
+  assert {
+    condition     = alltrue([for s in aws_subnet.database : !s.map_public_ip_on_launch])
+    error_message = "Database subnets must not assign public IPs."
+  }
+
+  assert {
+    condition     = length(aws_route_table_association.database) == 2 && alltrue([for a in aws_route_table_association.database : a.route_table_id == aws_route_table.database.id])
+    error_message = "Every database subnet must use the database route table."
+  }
+
+  assert {
+    condition     = alltrue([for r in aws_route.private_nat : r.route_table_id != aws_route_table.database.id]) && aws_route.public_internet.route_table_id != aws_route_table.database.id
+    error_message = "The database route table must have no route to a NAT or the internet gateway."
+  }
+
+  assert {
+    condition     = !contains(aws_vpc_endpoint.s3.route_table_ids, aws_route_table.database.id)
+    error_message = "The database route table must not be attached to the S3 endpoint."
+  }
+
+  assert {
+    condition     = length(output.database_subnet_ids) == 2
+    error_message = "database_subnet_ids must list both subnets."
+  }
 }
 
 run "private_tier_without_nat" {
