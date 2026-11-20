@@ -17,3 +17,6 @@ crash.log
 crash.*.log
 
 .DS_Store
+
+# Local credentials, never published
+.env
