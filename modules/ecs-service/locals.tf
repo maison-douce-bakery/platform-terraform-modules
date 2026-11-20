@@ -27,6 +27,15 @@ locals {
       }
     },
     var.command == null ? {} : { command = var.command },
+    length(var.efs_volumes) == 0 ? {} : {
+      mountPoints = [
+        for k in sort(keys(var.efs_volumes)) : {
+          sourceVolume  = k
+          containerPath = var.efs_volumes[k].container_path
+          readOnly      = var.efs_volumes[k].read_only
+        }
+      ]
+    },
   )
 
   # Only ECS in this account may assume the roles (confused deputy protection).

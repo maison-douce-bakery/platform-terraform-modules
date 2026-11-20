@@ -106,6 +106,40 @@ variable "desired_count" {
   default     = 1
 }
 
+# 0 and 100 stop the old task before the new one starts, for apps that allow only one running copy.
+variable "deployment_minimum_healthy_percent" {
+  description = "Lower limit of running tasks during a deployment, in percent of desired_count."
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.deployment_minimum_healthy_percent >= 0 && var.deployment_minimum_healthy_percent <= 100
+    error_message = "deployment_minimum_healthy_percent must be between 0 and 100."
+  }
+}
+
+variable "deployment_maximum_percent" {
+  description = "Upper limit of running tasks during a deployment, in percent of desired_count."
+  type        = number
+  default     = 200
+
+  validation {
+    condition     = var.deployment_maximum_percent >= 100 && var.deployment_maximum_percent <= 200
+    error_message = "deployment_maximum_percent must be between 100 and 200."
+  }
+}
+
+variable "efs_volumes" {
+  description = "EFS volumes to mount, by volume name. Mounted over TLS through the access point, authorized by the task role."
+  type = map(object({
+    file_system_id  = string
+    access_point_id = string
+    container_path  = string
+    read_only       = optional(bool, false)
+  }))
+  default = {}
+}
+
 variable "permissions_boundary_arn" {
   description = "Permissions boundary for the task and execution roles."
   type        = string

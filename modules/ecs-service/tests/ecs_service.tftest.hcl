@@ -107,6 +107,76 @@ run "defaults" {
     condition     = jsondecode(aws_ecs_task_definition.this.container_definitions)[0].logConfiguration.options["awslogs-group"] == "/ecs/mdb-test-app" && aws_cloudwatch_log_group.this.retention_in_days == 30
     error_message = "Logs must go to the module's log group with a retention."
   }
+
+  assert {
+    condition     = aws_ecs_service.this.deployment_minimum_healthy_percent == 100 && aws_ecs_service.this.deployment_maximum_percent == 200
+    error_message = "By default a new task must start before the old one stops."
+  }
+
+  assert {
+    condition     = length(aws_ecs_task_definition.this.volume) == 0 && !can(jsondecode(aws_ecs_task_definition.this.container_definitions)[0].mountPoints) && length(aws_iam_role_policy.task_efs) == 0
+    error_message = "Without EFS volumes there must be no volume, mount point or EFS policy."
+  }
+}
+
+run "efs_volume_single_copy" {
+  variables {
+    deployment_minimum_healthy_percent = 0
+    deployment_maximum_percent         = 100
+    efs_volumes = {
+      data = { file_system_id = "fs-0123456789abcdef0", access_point_id = "fsap-0123456789abcdef0", container_path = "/var/lib/app" }
+      ref  = { file_system_id = "fs-0123456789abcdef0", access_point_id = "fsap-0fedcba9876543210", container_path = "/ref", read_only = true }
+    }
+  }
+
+  assert {
+    condition     = aws_ecs_service.this.deployment_minimum_healthy_percent == 0 && aws_ecs_service.this.deployment_maximum_percent == 100
+    error_message = "The deployment limits must come from the inputs."
+  }
+
+  assert {
+    condition = alltrue([
+      for v in aws_ecs_task_definition.this.volume :
+      one(v.efs_volume_configuration).transit_encryption == "ENABLED" && one(one(v.efs_volume_configuration).authorization_config).iam == "ENABLED"
+    ]) && length(aws_ecs_task_definition.this.volume) == 2
+    error_message = "EFS volumes must use TLS and IAM authorization."
+  }
+
+  assert {
+    condition = jsondecode(aws_ecs_task_definition.this.container_definitions)[0].mountPoints == [
+      { sourceVolume = "data", containerPath = "/var/lib/app", readOnly = false },
+      { sourceVolume = "ref", containerPath = "/ref", readOnly = true },
+    ]
+    error_message = "Each volume must be mounted at its container path."
+  }
+
+  assert {
+    condition = jsondecode(aws_iam_role_policy.task_efs[0].policy).Statement == [
+      {
+        Effect    = "Allow"
+        Action    = ["elasticfilesystem:ClientMount", "elasticfilesystem:ClientWrite"]
+        Resource  = "arn:aws:elasticfilesystem:ap-southeast-2:123456789012:file-system/fs-0123456789abcdef0"
+        Condition = { StringEquals = { "elasticfilesystem:AccessPointArn" = "arn:aws:elasticfilesystem:ap-southeast-2:123456789012:access-point/fsap-0123456789abcdef0" } }
+      },
+      {
+        Effect    = "Allow"
+        Action    = ["elasticfilesystem:ClientMount"]
+        Resource  = "arn:aws:elasticfilesystem:ap-southeast-2:123456789012:file-system/fs-0123456789abcdef0"
+        Condition = { StringEquals = { "elasticfilesystem:AccessPointArn" = "arn:aws:elasticfilesystem:ap-southeast-2:123456789012:access-point/fsap-0fedcba9876543210" } }
+      },
+    ]
+    error_message = "The task role may mount each file system only through its access point, and write only to writable volumes."
+  }
+}
+
+run "rejects_minimum_above_100" {
+  command = plan
+
+  variables {
+    deployment_minimum_healthy_percent = 150
+  }
+
+  expect_failures = [var.deployment_minimum_healthy_percent]
 }
 
 run "no_secrets_no_secret_policy" {

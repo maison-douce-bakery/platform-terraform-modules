@@ -9,12 +9,13 @@ One container as an ECS service on an EC2 capacity provider:
 - Task role with no permissions unless the caller passes a policy
 - Both roles under `/workload/` with the given permissions boundary, trusted only by this account's ECS
 - Container logs in a `/ecs/<name>` log group with a retention
+- Optional EFS volumes, mounted over TLS through an access point and authorized by the task role
 
 ## Usage
 
 ```hcl
 module "app" {
-  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/ecs-service?ref=ecs-service/v0.1.0"
+  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/ecs-service?ref=ecs-service/v0.2.0"
 
   name                     = "mdb-dev-app"
   cluster_name             = "mdb-dev"
@@ -52,6 +53,9 @@ module "app" {
 | `ingress_security_group_ids` | `list(string)` | `[]` | Security groups allowed to reach the container port |
 | `task_role_policy_json` | `string` | `null` | Policy for the application's AWS calls |
 | `desired_count` | `number` | `1` | Tasks to keep running |
+| `deployment_minimum_healthy_percent` | `number` | `100` | Lower limit during a deployment; `0` with a maximum of `100` stops the old task first |
+| `deployment_maximum_percent` | `number` | `200` | Upper limit during a deployment |
+| `efs_volumes` | `map(object)` | `{}` | EFS volumes by name: `file_system_id`, `access_point_id`, `container_path`, optional `read_only` |
 | `permissions_boundary_arn` | `string` | | Boundary for both roles |
 | `log_retention_days` | `number` | `30` | Log retention |
 | `tags` | `map(string)` | `{}` | Extra tags on top of the provider's `default_tags` |
