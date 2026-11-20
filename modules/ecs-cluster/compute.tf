@@ -63,11 +63,13 @@ resource "aws_launch_template" "this" {
 
 resource "aws_autoscaling_group" "this" {
   name                = "${var.name}-ecs"
-  min_size            = var.instance_count
-  max_size            = var.instance_count
-  desired_capacity    = var.instance_count
+  min_size            = var.min_size
+  max_size            = var.max_size
   vpc_zone_identifier = var.subnet_ids
   health_check_type   = "EC2"
+
+  # Required by managed termination protection: ECS decides which instances may be scaled in.
+  protect_from_scale_in = true
 
   # A new instance profile can be rejected for a few seconds after creation. Keep waiting while the
   # ASG retries instead of failing the apply and leaving the ASG tainted.
@@ -89,6 +91,18 @@ resource "aws_autoscaling_group" "this" {
     }
   }
 
+  # ECS adds this tag when it manages the ASG; declaring it avoids a diff.
+  tag {
+    key                 = "AmazonECSManaged"
+    value               = ""
+    propagate_at_launch = true
+  }
+
   # Instances register with the cluster on boot, so it must exist first.
   depends_on = [aws_ecs_cluster.this]
+
+  # ECS managed scaling owns the instance count.
+  lifecycle {
+    ignore_changes = [desired_capacity]
+  }
 }

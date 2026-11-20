@@ -40,14 +40,25 @@ variable "instance_type" {
   default     = "t4g.micro"
 }
 
-variable "instance_count" {
-  description = "Fixed number of container instances. 0 stops all of them."
+variable "min_size" {
+  description = "Fewest container instances. 0 lets ECS stop every instance when no task needs one."
   type        = number
   default     = 1
 
   validation {
-    condition     = var.instance_count >= 0 && var.instance_count <= 10
-    error_message = "instance_count must be between 0 and 10."
+    condition     = var.min_size >= 0
+    error_message = "min_size must not be negative."
+  }
+}
+
+variable "max_size" {
+  description = "Most container instances ECS may scale out to. Caps the EC2 cost."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.max_size >= 1 && var.max_size <= 10 && var.max_size >= var.min_size
+    error_message = "max_size must be between 1 and 10 and at least min_size."
   }
 }
 

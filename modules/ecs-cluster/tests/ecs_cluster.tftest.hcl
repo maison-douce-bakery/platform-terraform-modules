@@ -26,6 +26,12 @@ mock_provider "aws" {
       id = "sg-0123456789abcdef0"
     }
   }
+
+  mock_resource "aws_autoscaling_group" {
+    defaults = {
+      arn = "arn:aws:autoscaling:ap-southeast-2:123456789012:autoScalingGroup:11111111-2222-3333-4444-555555555555:autoScalingGroupName/mdb-test-ecs"
+    }
+  }
 }
 
 variables {
@@ -58,8 +64,28 @@ run "defaults" {
   }
 
   assert {
-    condition     = aws_autoscaling_group.this.min_size == 1 && aws_autoscaling_group.this.max_size == 1 && aws_autoscaling_group.this.desired_capacity == 1
-    error_message = "The ASG must hold exactly one instance by default."
+    condition     = aws_autoscaling_group.this.min_size == 1 && aws_autoscaling_group.this.max_size == 2
+    error_message = "The ASG must default to 1-2 instances."
+  }
+
+  assert {
+    condition     = aws_autoscaling_group.this.protect_from_scale_in
+    error_message = "Instances must be protected from scale-in so ECS decides which ones may go."
+  }
+
+  assert {
+    condition = (
+      aws_ecs_capacity_provider.this.auto_scaling_group_provider[0].managed_termination_protection == "ENABLED" &&
+      aws_ecs_capacity_provider.this.auto_scaling_group_provider[0].managed_draining == "ENABLED" &&
+      aws_ecs_capacity_provider.this.auto_scaling_group_provider[0].managed_scaling[0].status == "ENABLED" &&
+      aws_ecs_capacity_provider.this.auto_scaling_group_provider[0].managed_scaling[0].target_capacity == 100
+    )
+    error_message = "The capacity provider must manage scaling, termination protection and draining."
+  }
+
+  assert {
+    condition     = aws_ecs_cluster_capacity_providers.this.capacity_providers == toset([aws_ecs_capacity_provider.this.name]) && one(aws_ecs_cluster_capacity_providers.this.default_capacity_provider_strategy).capacity_provider == aws_ecs_capacity_provider.this.name
+    error_message = "The capacity provider must be the cluster default."
   }
 
   assert {
@@ -98,15 +124,26 @@ run "defaults" {
   }
 }
 
-run "zero_instances" {
+run "scale_to_zero_allowed" {
   variables {
-    instance_count = 0
+    min_size = 0
   }
 
   assert {
-    condition     = aws_autoscaling_group.this.desired_capacity == 0 && aws_autoscaling_group.this.max_size == 0
-    error_message = "instance_count 0 must scale the ASG to zero."
+    condition     = aws_autoscaling_group.this.min_size == 0 && aws_autoscaling_group.this.max_size == 2
+    error_message = "min_size 0 must let ECS scale the ASG to zero."
   }
+}
+
+run "rejects_max_below_min" {
+  command = plan
+
+  variables {
+    min_size = 3
+    max_size = 2
+  }
+
+  expect_failures = [var.max_size]
 }
 
 run "rejects_bad_ami" {
