@@ -10,7 +10,6 @@ locals {
   azs = slice(sort(data.aws_availability_zones.this.names), 0, var.az_count)
 
   # /16 -> one /18 per tier -> one /20 per AZ. Never renumber: existing subnets would move.
-  # database is reserved, not created yet.
   tier_index = {
     public   = 0
     private  = 1
@@ -25,5 +24,10 @@ locals {
   private_subnets = {
     for i, az in local.azs :
     az => cidrsubnet(cidrsubnet(var.cidr_block, 2, local.tier_index.private), 2, i)
+  }
+
+  database_subnets = {
+    for i, az in local.azs :
+    az => cidrsubnet(cidrsubnet(var.cidr_block, 2, local.tier_index.database), 2, i)
   }
 }
