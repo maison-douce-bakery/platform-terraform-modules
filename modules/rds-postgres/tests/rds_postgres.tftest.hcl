@@ -69,6 +69,11 @@ run "defaults" {
   }
 
   assert {
+    condition     = one([for p in aws_db_parameter_group.this.parameter : p.apply_method if p.name == "rds.force_ssl"]) == "pending-reboot"
+    error_message = "rds.force_ssl must use pending-reboot, as AWS reports it, to avoid a permanent diff."
+  }
+
+  assert {
     condition     = length(aws_security_group.this.ingress) == 0
     error_message = "The security group must have no inbound rules; consumers add their own."
   }
