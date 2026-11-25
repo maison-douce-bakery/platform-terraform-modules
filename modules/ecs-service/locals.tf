@@ -6,11 +6,10 @@ locals {
 
   container = merge(
     {
-      name         = var.name
-      image        = var.image
-      essential    = true
-      portMappings = [{ containerPort = var.container_port, protocol = "tcp" }]
-      environment  = [for k in sort(keys(var.environment)) : { name = k, value = var.environment[k] }]
+      name        = var.name
+      image       = var.image
+      essential   = true
+      environment = [for k in sort(keys(var.environment)) : { name = k, value = var.environment[k] }]
       secrets = [
         for k in sort(keys(var.secrets)) : {
           name      = k
@@ -26,6 +25,7 @@ locals {
         }
       }
     },
+    var.container_port == null ? {} : { portMappings = [{ containerPort = var.container_port, protocol = "tcp" }] },
     var.command == null ? {} : { command = var.command },
     length(var.efs_volumes) == 0 ? {} : {
       mountPoints = [

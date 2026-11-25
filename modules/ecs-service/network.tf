@@ -1,6 +1,6 @@
 resource "aws_security_group" "this" {
   name        = "${var.name}-task"
-  description = "${var.name} tasks. Inbound only from the given security groups on the container port."
+  description = "${var.name} tasks. No inbound unless security groups are given for the container port."
   vpc_id      = var.vpc_id
 
   tags = merge(var.tags, { Name = "${var.name}-task" })
@@ -21,5 +21,5 @@ resource "aws_vpc_security_group_egress_rule" "all" {
   security_group_id = aws_security_group.this.id
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
-  description       = "Egress through the NAT and to VPC services"
+  description       = "Egress to the internet and AWS services"
 }

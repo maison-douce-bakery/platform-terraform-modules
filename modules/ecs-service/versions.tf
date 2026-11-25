@@ -1,6 +1,6 @@
-# Lower bounds only: the consuming stack pins versions. 1.7 adds mock_provider for tests.
+# Lower bounds only: the consuming stack pins versions. 1.9 allows variable validations to reference other variables.
 terraform {
-  required_version = ">= 1.7"
+  required_version = ">= 1.9"
 
   required_providers {
     aws = {

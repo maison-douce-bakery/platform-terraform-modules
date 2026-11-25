@@ -14,8 +14,9 @@ variable "cluster_name" {
 }
 
 variable "capacity_provider_name" {
-  description = "Capacity provider that places the tasks."
+  description = "Capacity provider that places the tasks: `FARGATE` or `FARGATE_SPOT`."
   type        = string
+  default     = "FARGATE"
 }
 
 variable "vpc_id" {
@@ -24,7 +25,7 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids" {
-  description = "Private subnets for the task ENIs."
+  description = "Subnets for the task ENIs. Public subnets when assign_public_ip is true."
   type        = list(string)
 
   validation {
@@ -44,21 +45,40 @@ variable "image" {
   }
 }
 
+variable "assign_public_ip" {
+  description = "Give each task a public IPv4 so it can reach the internet without a NAT. Inbound stays closed unless ingress_security_group_ids is set."
+  type        = bool
+  default     = false
+}
+
 variable "cpu" {
-  description = "Task CPU units (1024 = 1 vCPU)."
+  description = "Task CPU units (1024 = 1 vCPU): 256, 512, 1024, 2048 or 4096."
   type        = number
   default     = 256
 }
 
+# Cross-variable validation needs Terraform 1.9. These are the Fargate cpu/memory combinations.
 variable "memory" {
-  description = "Task memory in MiB, a hard limit."
+  description = "Task memory in MiB, a hard limit. Must be a valid Fargate size for cpu."
   type        = number
   default     = 512
+
+  validation {
+    condition = contains(lookup({
+      "256"  = [512, 1024, 2048]
+      "512"  = range(1024, 4097, 1024)
+      "1024" = range(2048, 8193, 1024)
+      "2048" = range(4096, 16385, 1024)
+      "4096" = range(8192, 30721, 1024)
+    }, tostring(var.cpu), []), var.memory)
+    error_message = "cpu/memory is not a valid Fargate combination. cpu 256: 512, 1024 or 2048. 512: 1024-4096. 1024: 2048-8192. 2048: 4096-16384. 4096: 8192-30720 (memory in 1024 steps, except 256)."
+  }
 }
 
 variable "container_port" {
-  description = "Port the container listens on."
+  description = "Port the container listens on. Null for a container that listens on none: no port mapping and no ingress."
   type        = number
+  default     = null
 }
 
 variable "command" {
@@ -89,9 +109,14 @@ variable "secrets_kms_key_arns" {
 }
 
 variable "ingress_security_group_ids" {
-  description = "Security groups allowed to reach the container port."
+  description = "Security groups allowed to reach the container port. Must be empty when container_port is null."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = var.container_port != null || length(var.ingress_security_group_ids) == 0
+    error_message = "ingress_security_group_ids must be empty when container_port is null."
+  }
 }
 
 variable "task_role_policy_json" {

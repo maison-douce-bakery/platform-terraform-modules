@@ -1,7 +1,7 @@
 resource "aws_ecs_task_definition" "this" {
   family                   = var.name
   network_mode             = "awsvpc"
-  requires_compatibilities = ["EC2"]
+  requires_compatibilities = ["FARGATE"]
   cpu                      = var.cpu
   memory                   = var.memory
   execution_role_arn       = aws_iam_role.execution.arn
@@ -48,7 +48,7 @@ resource "aws_ecs_service" "this" {
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.this.id]
-    assign_public_ip = false
+    assign_public_ip = var.assign_public_ip
   }
 
   # A deployment that never becomes healthy rolls back to the previous task definition.

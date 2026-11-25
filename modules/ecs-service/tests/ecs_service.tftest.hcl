@@ -26,7 +26,6 @@ mock_provider "aws" {
 variables {
   name                     = "mdb-test-app"
   cluster_name             = "mdb-test"
-  capacity_provider_name   = "mdb-test-ec2"
   vpc_id                   = "vpc-0123456789abcdef0"
   subnet_ids               = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
   image                    = "ghcr.io/example/app@sha256:0000000000000000000000000000000000000000000000000000000000000000"
@@ -49,7 +48,17 @@ run "defaults" {
 
   assert {
     condition     = !one(aws_ecs_service.this.network_configuration).assign_public_ip
-    error_message = "Tasks must not get public IPs."
+    error_message = "Tasks must not get public IPs by default."
+  }
+
+  assert {
+    condition     = aws_ecs_task_definition.this.requires_compatibilities == toset(["FARGATE"]) && aws_ecs_task_definition.this.cpu == "256" && aws_ecs_task_definition.this.memory == "512"
+    error_message = "Tasks must be Fargate with task-level cpu and memory."
+  }
+
+  assert {
+    condition     = jsondecode(aws_ecs_task_definition.this.container_definitions)[0].portMappings == [{ containerPort = 8080, protocol = "tcp" }]
+    error_message = "The container port must be mapped."
   }
 
   assert {
@@ -58,7 +67,7 @@ run "defaults" {
   }
 
   assert {
-    condition     = one(aws_ecs_service.this.capacity_provider_strategy).capacity_provider == "mdb-test-ec2" && aws_ecs_service.this.wait_for_steady_state
+    condition     = one(aws_ecs_service.this.capacity_provider_strategy).capacity_provider == "FARGATE" && aws_ecs_service.this.wait_for_steady_state
     error_message = "The service must use the capacity provider and wait for a steady state."
   }
 
@@ -117,6 +126,79 @@ run "defaults" {
     condition     = length(aws_ecs_task_definition.this.volume) == 0 && !can(jsondecode(aws_ecs_task_definition.this.container_definitions)[0].mountPoints) && length(aws_iam_role_policy.task_efs) == 0
     error_message = "Without EFS volumes there must be no volume, mount point or EFS policy."
   }
+}
+
+run "public_ip_and_spot" {
+  variables {
+    assign_public_ip       = true
+    capacity_provider_name = "FARGATE_SPOT"
+  }
+
+  assert {
+    condition     = one(aws_ecs_service.this.network_configuration).assign_public_ip && one(aws_ecs_service.this.capacity_provider_strategy).capacity_provider == "FARGATE_SPOT"
+    error_message = "assign_public_ip and the capacity provider must come from the inputs."
+  }
+}
+
+run "valid_fargate_sizes" {
+  variables {
+    cpu    = 1024
+    memory = 8192
+  }
+
+  assert {
+    condition     = aws_ecs_task_definition.this.cpu == "1024" && aws_ecs_task_definition.this.memory == "8192"
+    error_message = "A valid cpu/memory pair must be accepted."
+  }
+}
+
+run "rejects_invalid_cpu_memory" {
+  command = plan
+
+  variables {
+    cpu    = 256
+    memory = 4096
+  }
+
+  expect_failures = [var.memory]
+}
+
+run "rejects_unknown_cpu" {
+  command = plan
+
+  variables {
+    cpu    = 300
+    memory = 512
+  }
+
+  expect_failures = [var.memory]
+}
+
+run "no_container_port" {
+  variables {
+    container_port             = null
+    ingress_security_group_ids = []
+  }
+
+  assert {
+    condition     = !can(jsondecode(aws_ecs_task_definition.this.container_definitions)[0].portMappings)
+    error_message = "Without a container port there must be no portMappings."
+  }
+
+  assert {
+    condition     = length(aws_vpc_security_group_ingress_rule.this) == 0
+    error_message = "Without a container port there must be no ingress rules."
+  }
+}
+
+run "rejects_ingress_without_port" {
+  command = plan
+
+  variables {
+    container_port = null
+  }
+
+  expect_failures = [var.ingress_security_group_ids]
 }
 
 run "efs_volume_single_copy" {
