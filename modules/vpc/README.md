@@ -6,7 +6,7 @@ A VPC with public, private and database subnets across 2 or 3 AZs:
 - One public subnet per AZ, routed to the internet gateway. Instances get no public IP unless they ask for one
 - One private subnet per AZ, each with its own route table. Internet egress through a NAT gateway when `nat_mode = "single"`
 - One database subnet per AZ, sharing a route table with only the local route (no internet, no NAT)
-- An S3 gateway endpoint on the private route tables (free, keeps S3 traffic off the NAT)
+- An S3 gateway endpoint on the public and private route tables (free, keeps S3 traffic off the internet gateway and the NAT)
 - The default security group locked down (no rules)
 
 The `/16` is split into one `/18` per tier and one `/20` per AZ. The fourth `/18` is spare.
@@ -21,7 +21,7 @@ The `/16` is split into one `/18` per tier and one `/20` per AZ. The fourth `/18
 
 ```hcl
 module "vpc" {
-  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/vpc?ref=vpc/v0.3.0"
+  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/vpc?ref=vpc/v0.4.0"
 
   name       = "mdb-dev"
   cidr_block = "10.10.0.0/16"

@@ -162,8 +162,8 @@ run "private_tier_without_nat" {
   }
 
   assert {
-    condition     = toset(aws_vpc_endpoint.s3.route_table_ids) == toset(values(aws_route_table.private)[*].id)
-    error_message = "The S3 endpoint must be attached to every private route table."
+    condition     = toset(aws_vpc_endpoint.s3.route_table_ids) == toset(concat([aws_route_table.public.id], values(aws_route_table.private)[*].id))
+    error_message = "The S3 endpoint must be attached to the public route table and every private route table."
   }
 
   assert {
