@@ -60,6 +60,27 @@ resource "aws_iam_role_policy" "task_efs" {
   })
 }
 
+# The SSM messages channel actions have no resource-level scope.
+resource "aws_iam_role_policy" "task_exec" {
+  count = var.enable_execute_command ? 1 : 0
+
+  name = "ecs-exec"
+  role = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel",
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "task" {
   count = var.task_role_policy_json == null ? 0 : 1
 

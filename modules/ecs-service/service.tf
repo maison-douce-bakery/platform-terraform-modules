@@ -62,6 +62,7 @@ resource "aws_ecs_service" "this" {
   # The apply fails if the service doesn't reach a steady state, instead of reporting success early.
   wait_for_steady_state = true
 
+  enable_execute_command  = var.enable_execute_command
   enable_ecs_managed_tags = true
   propagate_tags          = "SERVICE"
 

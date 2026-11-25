@@ -165,6 +165,12 @@ variable "efs_volumes" {
   default = {}
 }
 
+variable "enable_execute_command" {
+  description = "Allow ECS Exec (SSM sessions and port forwarding) into the tasks."
+  type        = bool
+  default     = false
+}
+
 variable "permissions_boundary_arn" {
   description = "Permissions boundary for the task and execution roles."
   type        = string
