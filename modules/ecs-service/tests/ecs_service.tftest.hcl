@@ -126,6 +126,37 @@ run "defaults" {
     condition     = length(aws_ecs_task_definition.this.volume) == 0 && !can(jsondecode(aws_ecs_task_definition.this.container_definitions)[0].mountPoints) && length(aws_iam_role_policy.task_efs) == 0
     error_message = "Without EFS volumes there must be no volume, mount point or EFS policy."
   }
+
+  assert {
+    condition     = !aws_ecs_service.this.enable_execute_command && length(aws_iam_role_policy.task_exec) == 0 && !can(jsondecode(aws_ecs_task_definition.this.container_definitions)[0].linuxParameters)
+    error_message = "ECS Exec must be off by default: no service flag, no exec policy, no linuxParameters."
+  }
+}
+
+run "execute_command" {
+  variables {
+    enable_execute_command = true
+  }
+
+  assert {
+    condition     = aws_ecs_service.this.enable_execute_command
+    error_message = "The service must enable ECS Exec."
+  }
+
+  assert {
+    condition = toset(jsondecode(aws_iam_role_policy.task_exec[0].policy).Statement[0].Action) == toset([
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel",
+    ]) && length(jsondecode(aws_iam_role_policy.task_exec[0].policy).Statement[0].Action) == 4
+    error_message = "The task role must get exactly the four ssmmessages actions."
+  }
+
+  assert {
+    condition     = jsondecode(aws_ecs_task_definition.this.container_definitions)[0].linuxParameters.initProcessEnabled
+    error_message = "ECS Exec needs initProcessEnabled."
+  }
 }
 
 run "public_ip_and_spot" {

@@ -27,6 +27,8 @@ locals {
     },
     var.container_port == null ? {} : { portMappings = [{ containerPort = var.container_port, protocol = "tcp" }] },
     var.command == null ? {} : { command = var.command },
+    # ECS Exec sessions need an init process to reap their child processes.
+    var.enable_execute_command ? { linuxParameters = { initProcessEnabled = true } } : {},
     length(var.efs_volumes) == 0 ? {} : {
       mountPoints = [
         for k in sort(keys(var.efs_volumes)) : {
