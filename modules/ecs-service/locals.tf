@@ -4,18 +4,19 @@ data "aws_caller_identity" "current" {}
 locals {
   secret_arns = distinct([for s in values(var.secrets) : s.secret_arn])
 
+  # Secrets Manager and SSM references in one map; the names cannot overlap (validated).
+  secret_refs = merge(
+    { for k, v in var.secrets : k => v.json_key == null ? v.secret_arn : "${v.secret_arn}:${v.json_key}::" },
+    var.ssm_secrets,
+  )
+
   container = merge(
     {
       name        = var.name
       image       = var.image
       essential   = true
       environment = [for k in sort(keys(var.environment)) : { name = k, value = var.environment[k] }]
-      secrets = [
-        for k in sort(keys(var.secrets)) : {
-          name      = k
-          valueFrom = var.secrets[k].json_key == null ? var.secrets[k].secret_arn : "${var.secrets[k].secret_arn}:${var.secrets[k].json_key}::"
-        }
-      ]
+      secrets     = [for k in sort(keys(local.secret_refs)) : { name = k, valueFrom = local.secret_refs[k] }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {

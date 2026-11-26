@@ -102,8 +102,25 @@ variable "secrets" {
   default = {}
 }
 
+variable "ssm_secrets" {
+  description = "Environment variables read from SSM Parameter Store (SecureString or String): name => parameter ARN. Injected at task start, the value never appears in the task definition or Terraform state."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for arn in values(var.ssm_secrets) : can(regex("^arn:aws[a-z-]*:ssm:[a-z0-9-]+:[0-9]{12}:parameter/.+$", arn))])
+    error_message = "Every ssm_secrets value must be an SSM parameter ARN (arn:aws:ssm:<region>:<account>:parameter/...)."
+  }
+
+  # Cross-variable validation needs Terraform 1.9.
+  validation {
+    condition     = length(setintersection(keys(var.ssm_secrets), keys(var.secrets))) == 0
+    error_message = "A name may be set in either secrets or ssm_secrets, not both."
+  }
+}
+
 variable "secrets_kms_key_arns" {
-  description = "Customer managed KMS keys that encrypt the secrets, so the execution role can decrypt them."
+  description = "Customer managed KMS keys that encrypt the secrets and SSM parameters, so the execution role can decrypt them. The AWS managed keys need no entry."
   type        = list(string)
   default     = []
 }
