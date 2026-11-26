@@ -6,7 +6,7 @@ One container as an ECS Fargate service:
 - Optional public IPv4 per task (`assign_public_ip`) so tasks in public subnets reach the internet without a NAT
 - Service with a deployment circuit breaker that rolls back, waiting for a steady state on apply
 - Task security group: no inbound unless security groups are given (then only the container port). `container_port` may be null for containers that listen on none
-- Execution role that may read only the given Secrets Manager secrets (and decrypt their KMS keys)
+- Execution role that may read only the given Secrets Manager secrets and SSM parameters (and decrypt their KMS keys)
 - Task role with no permissions unless the caller passes a policy
 - Both roles under `/workload/` with the given permissions boundary, trusted only by this account's ECS
 - Container logs in a `/ecs/<name>` log group with a retention
@@ -17,7 +17,7 @@ One container as an ECS Fargate service:
 
 ```hcl
 module "app" {
-  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/ecs-service?ref=ecs-service/v0.4.0"
+  source = "git::https://github.com/maison-douce-bakery/platform-terraform-modules.git//modules/ecs-service?ref=ecs-service/v0.5.0"
 
   name                     = "mdb-dev-app"
   cluster_name             = "mdb-dev"
@@ -52,7 +52,8 @@ module "app" {
 | `command` | `list(string)` | `null` | Override the image command |
 | `environment` | `map(string)` | `{}` | Plain environment variables |
 | `secrets` | `map(object)` | `{}` | Variables from Secrets Manager: `secret_arn`, optional `json_key` |
-| `secrets_kms_key_arns` | `list(string)` | `[]` | KMS keys that encrypt the secrets |
+| `ssm_secrets` | `map(string)` | `{}` | Variables from SSM Parameter Store: name => parameter ARN; names must not repeat `secrets` |
+| `secrets_kms_key_arns` | `list(string)` | `[]` | Customer managed KMS keys that encrypt the secrets and parameters |
 | `ingress_security_group_ids` | `list(string)` | `[]` | Security groups allowed to reach the container port; empty when `container_port` is null |
 | `task_role_policy_json` | `string` | `null` | Policy for the application's AWS calls |
 | `desired_count` | `number` | `1` | Tasks to keep running |

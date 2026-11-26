@@ -95,6 +95,11 @@ run "defaults" {
   }
 
   assert {
+    condition     = length(aws_iam_role_policy.execution_ssm) == 0
+    error_message = "Without ssm_secrets there must be no SSM policy."
+  }
+
+  assert {
     condition     = length(aws_iam_role_policy.task) == 0
     error_message = "The task role must have no permissions by default."
   }
@@ -302,6 +307,74 @@ run "no_secrets_no_secret_policy" {
     condition     = length(aws_iam_role_policy.execution_secrets) == 0
     error_message = "Without secrets there must be no secrets policy."
   }
+}
+
+run "ssm_secrets" {
+  variables {
+    ssm_secrets = {
+      COGNITO_SECRET = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/cognito"
+      APP_KEY        = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/app-key"
+    }
+    secrets_kms_key_arns = []
+  }
+
+  assert {
+    condition = jsondecode(aws_ecs_task_definition.this.container_definitions)[0].secrets == [
+      { name = "API_KEY", valueFrom = "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:api-GhIjKl" },
+      { name = "APP_KEY", valueFrom = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/app-key" },
+      { name = "COGNITO_SECRET", valueFrom = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/cognito" },
+      { name = "DB_PASSWORD", valueFrom = "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:db-AbCdEf:password::" },
+    ]
+    error_message = "SSM and Secrets Manager secrets must be merged and sorted by name, as valueFrom references."
+  }
+
+  assert {
+    condition = jsondecode(aws_iam_role_policy.execution_ssm[0].policy).Statement == [{
+      Effect = "Allow"
+      Action = "ssm:GetParameters"
+      Resource = [
+        "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/app-key",
+        "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/cognito",
+      ]
+    }]
+    error_message = "The execution role may read exactly the given parameters and nothing else, with no KMS statement for AWS managed keys."
+  }
+
+  assert {
+    condition     = !strcontains(aws_iam_role_policy.execution_ssm[0].policy, "\"*\"") && !strcontains(aws_ecs_task_definition.this.container_definitions, "\"value\":\"arn:aws:ssm")
+    error_message = "No wildcard resources and no parameter ARN as a plain environment value."
+  }
+}
+
+run "ssm_secrets_with_kms" {
+  variables {
+    ssm_secrets = { APP_KEY = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/app-key" }
+  }
+
+  assert {
+    condition     = jsondecode(aws_iam_role_policy.execution_ssm[0].policy).Statement[1] == { Effect = "Allow", Action = "kms:Decrypt", Resource = ["arn:aws:kms:ap-southeast-2:123456789012:key/11111111-2222-3333-4444-555555555555"] }
+    error_message = "With customer managed keys the SSM policy must allow kms:Decrypt on exactly those keys."
+  }
+}
+
+run "rejects_overlapping_secret_names" {
+  command = plan
+
+  variables {
+    ssm_secrets = { DB_PASSWORD = "arn:aws:ssm:ap-southeast-2:123456789012:parameter/mdb/prod/db" }
+  }
+
+  expect_failures = [var.ssm_secrets]
+}
+
+run "rejects_non_ssm_arn" {
+  command = plan
+
+  variables {
+    ssm_secrets = { APP_KEY = "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:x-AbCdEf" }
+  }
+
+  expect_failures = [var.ssm_secrets]
 }
 
 run "rejects_tag_without_digest" {

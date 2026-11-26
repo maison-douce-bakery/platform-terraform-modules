@@ -27,6 +27,21 @@ resource "aws_iam_role_policy" "execution_secrets" {
   })
 }
 
+# Each policy grants kms:Decrypt on secrets_kms_key_arns for what it serves, so the key is listed in both when both are used.
+resource "aws_iam_role_policy" "execution_ssm" {
+  count = length(var.ssm_secrets) > 0 ? 1 : 0
+
+  name = "read-ssm-parameters"
+  role = aws_iam_role.execution.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat(
+      [{ Effect = "Allow", Action = "ssm:GetParameters", Resource = distinct(values(var.ssm_secrets)) }],
+      length(var.secrets_kms_key_arns) > 0 ? [{ Effect = "Allow", Action = "kms:Decrypt", Resource = var.secrets_kms_key_arns }] : [],
+    )
+  })
+}
+
 # Used by the application itself. No permissions unless the caller grants some.
 resource "aws_iam_role" "task" {
   name                 = "${var.name}-task"
