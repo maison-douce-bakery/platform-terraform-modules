@@ -386,3 +386,39 @@ run "rejects_tag_without_digest" {
 
   expect_failures = [var.image]
 }
+
+run "load_balancer" {
+  variables {
+    target_group_arn                  = "arn:aws:elasticloadbalancing:ap-southeast-2:123456789012:targetgroup/mdb-test/0123456789abcdef"
+    health_check_grace_period_seconds = 60
+  }
+
+  assert {
+    condition     = length(aws_ecs_service.this.load_balancer) == 1 && one(aws_ecs_service.this.load_balancer).container_port == 8080 && one(aws_ecs_service.this.load_balancer).container_name == "mdb-test-app"
+    error_message = "The service must register the container and port with the target group."
+  }
+
+  assert {
+    condition     = aws_ecs_service.this.health_check_grace_period_seconds == 60
+    error_message = "The health check grace period must come from the input."
+  }
+}
+
+run "rejects_target_group_without_port" {
+  command = plan
+
+  variables {
+    target_group_arn           = "arn:aws:elasticloadbalancing:ap-southeast-2:123456789012:targetgroup/mdb-test/0123456789abcdef"
+    container_port             = null
+    ingress_security_group_ids = []
+  }
+
+  expect_failures = [var.target_group_arn]
+}
+
+run "no_load_balancer" {
+  assert {
+    condition     = length(aws_ecs_service.this.load_balancer) == 0
+    error_message = "Without a target group there must be no load_balancer block."
+  }
+}
