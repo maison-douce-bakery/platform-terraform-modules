@@ -11,6 +11,7 @@ One container as an ECS Fargate service:
 - Both roles under `/workload/` with the given permissions boundary, trusted only by this account's ECS
 - Container logs in a `/ecs/<name>` log group with a retention
 - Optional EFS volumes, mounted over TLS through an access point and authorized by the task role
+- Optional ALB target group registration (`target_group_arn`)
 - Optional ECS Exec (`enable_execute_command`): the task role gets the `ssmmessages` channel actions
 
 ## Usage
@@ -55,6 +56,8 @@ module "app" {
 | `ssm_secrets` | `map(string)` | `{}` | Variables from SSM Parameter Store: name => parameter ARN; names must not repeat `secrets` |
 | `secrets_kms_key_arns` | `list(string)` | `[]` | Customer managed KMS keys that encrypt the secrets and parameters |
 | `ingress_security_group_ids` | `list(string)` | `[]` | Security groups allowed to reach the container port; empty when `container_port` is null |
+| `target_group_arn` | `string` | `null` | ALB target group the tasks register with; needs `container_port`. Null means no load balancer |
+| `health_check_grace_period_seconds` | `number` | `null` | Seconds failing load balancer health checks are ignored after a task starts; used only with `target_group_arn` |
 | `task_role_policy_json` | `string` | `null` | Policy for the application's AWS calls |
 | `desired_count` | `number` | `1` | Tasks to keep running |
 | `deployment_minimum_healthy_percent` | `number` | `100` | Lower limit during a deployment; `0` with a maximum of `100` stops the old task first |

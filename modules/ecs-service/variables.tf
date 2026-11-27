@@ -136,6 +136,23 @@ variable "ingress_security_group_ids" {
   }
 }
 
+variable "target_group_arn" {
+  description = "ALB target group the service registers its tasks with. Null for a service without a load balancer."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.target_group_arn == null || var.container_port != null
+    error_message = "container_port must be set when target_group_arn is set."
+  }
+}
+
+variable "health_check_grace_period_seconds" {
+  description = "Seconds the service ignores failing load balancer health checks after a task starts. Used only with target_group_arn."
+  type        = number
+  default     = null
+}
+
 variable "task_role_policy_json" {
   description = "IAM policy for the application's own AWS calls. Null gives the task no AWS permissions."
   type        = string

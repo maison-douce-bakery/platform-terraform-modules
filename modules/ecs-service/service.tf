@@ -51,6 +51,18 @@ resource "aws_ecs_service" "this" {
     assign_public_ip = var.assign_public_ip
   }
 
+  dynamic "load_balancer" {
+    for_each = var.target_group_arn == null ? [] : [var.target_group_arn]
+
+    content {
+      target_group_arn = load_balancer.value
+      container_name   = var.name
+      container_port   = var.container_port
+    }
+  }
+
+  health_check_grace_period_seconds = var.target_group_arn == null ? null : var.health_check_grace_period_seconds
+
   # A deployment that never becomes healthy rolls back to the previous task definition.
   deployment_circuit_breaker {
     enable   = true
