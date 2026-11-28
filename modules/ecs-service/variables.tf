@@ -153,6 +153,15 @@ variable "health_check_grace_period_seconds" {
   default     = null
 }
 
+variable "service_discovery" {
+  description = "Cloud Map registration: the private IPs of the tasks are published as A records named `<name>` in the namespace, so other services in the VPC find them. Null for none."
+  type = object({
+    namespace_id = string
+    name         = string
+  })
+  default = null
+}
+
 variable "task_role_policy_json" {
   description = "IAM policy for the application's own AWS calls. Null gives the task no AWS permissions."
   type        = string
