@@ -63,6 +63,14 @@ resource "aws_ecs_service" "this" {
 
   health_check_grace_period_seconds = var.target_group_arn == null ? null : var.health_check_grace_period_seconds
 
+  dynamic "service_registries" {
+    for_each = var.service_discovery == null ? [] : [aws_service_discovery_service.this[0].arn]
+
+    content {
+      registry_arn = service_registries.value
+    }
+  }
+
   # A deployment that never becomes healthy rolls back to the previous task definition.
   deployment_circuit_breaker {
     enable   = true

@@ -18,6 +18,10 @@ mock_provider "aws" {
     defaults = { id = "sg-0123456789abcdef0" }
   }
 
+  mock_resource "aws_service_discovery_service" {
+    defaults = { arn = "arn:aws:servicediscovery:ap-southeast-2:123456789012:service/srv-0123456789abcdef" }
+  }
+
   mock_resource "aws_ecs_task_definition" {
     defaults = { arn = "arn:aws:ecs:ap-southeast-2:123456789012:task-definition/mdb-test-app:1" }
   }
@@ -420,5 +424,28 @@ run "no_load_balancer" {
   assert {
     condition     = length(aws_ecs_service.this.load_balancer) == 0
     error_message = "Without a target group there must be no load_balancer block."
+  }
+}
+
+run "service_discovery" {
+  variables {
+    service_discovery = { namespace_id = "ns-0123456789abcdef", name = "app" }
+  }
+
+  assert {
+    condition     = length(aws_ecs_service.this.service_registries) == 1 && one(aws_ecs_service.this.service_registries).registry_arn == "arn:aws:servicediscovery:ap-southeast-2:123456789012:service/srv-0123456789abcdef"
+    error_message = "The service must register with the Cloud Map service."
+  }
+
+  assert {
+    condition     = one(aws_service_discovery_service.this[0].dns_config).namespace_id == "ns-0123456789abcdef" && one(one(aws_service_discovery_service.this[0].dns_config).dns_records).type == "A" && one(one(aws_service_discovery_service.this[0].dns_config).dns_records).ttl == 10
+    error_message = "The Cloud Map service must publish A records with a short TTL in the given namespace."
+  }
+}
+
+run "no_service_discovery" {
+  assert {
+    condition     = length(aws_ecs_service.this.service_registries) == 0 && length(aws_service_discovery_service.this) == 0
+    error_message = "Without service_discovery there must be no registry and no Cloud Map service."
   }
 }

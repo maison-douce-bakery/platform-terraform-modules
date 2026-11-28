@@ -13,6 +13,7 @@ One container as an ECS Fargate service:
 - Optional EFS volumes, mounted over TLS through an access point and authorized by the task role
 - Optional ALB target group registration (`target_group_arn`)
 - Optional ECS Exec (`enable_execute_command`): the task role gets the `ssmmessages` channel actions
+- Optional Cloud Map registration (`service_discovery`): the task IPs are published as A records in a private DNS namespace
 
 ## Usage
 
@@ -58,6 +59,7 @@ module "app" {
 | `ingress_security_group_ids` | `list(string)` | `[]` | Security groups allowed to reach the container port; empty when `container_port` is null |
 | `target_group_arn` | `string` | `null` | ALB target group the tasks register with; needs `container_port`. Null means no load balancer |
 | `health_check_grace_period_seconds` | `number` | `null` | Seconds failing load balancer health checks are ignored after a task starts; used only with `target_group_arn` |
+| `service_discovery` | `object` | `null` | Cloud Map registration: `namespace_id` of a private DNS namespace and the service `name`; the tasks answer at `<name>.<namespace>` |
 | `task_role_policy_json` | `string` | `null` | Policy for the application's AWS calls |
 | `desired_count` | `number` | `1` | Tasks to keep running |
 | `deployment_minimum_healthy_percent` | `number` | `100` | Lower limit during a deployment; `0` with a maximum of `100` stops the old task first |
